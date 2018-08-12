@@ -14,13 +14,21 @@ This code depends on the following packages:
 - doxygen for documentation
 
 To compile and install, the GNU autotools suite is used. Do the following:
-> autoreconf -ivf
-> ./configure --enable-debug
-> make 
+```
+autoreconf -ivf
+./configure --enable-debug
+make 
+```
 
 To run unit tests, run
-> make check
+```
+make check
+```
+
 
 To create the documentation, do
-> make doxygen-doc
+```
+make doxygen-doc
+```
+
 
