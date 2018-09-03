@@ -25,10 +25,9 @@ namespace dsarch {
 
 using std::set;
 
-class basic_network;
+class network;
 class host;
 class host_group;
-class process;
 class channel;
 
 
@@ -241,7 +240,7 @@ public:
 
 	virtual string repr() const;
 
-	friend class basic_network;
+	friend class network;
 	friend class host;
 };
 
@@ -272,7 +271,7 @@ public:
 
 	virtual string repr() const override;
 
-	friend class basic_network;
+	friend class network;
 	friend class host;
 
 };
@@ -284,7 +283,7 @@ typedef std::unordered_set<channel*> channel_set;
 typedef std::unordered_set<host*> host_set;
 
 /**
-	Hosts are used as nodes in the basic_network.
+	Hosts are used as nodes in the network.
 
 	Hosts can be named, for more friendly output. A host
 	can represent a single network destination (site), or a set
@@ -297,24 +296,24 @@ typedef std::unordered_set<host*> host_set;
   */
 class host : public named
 {
-	host(basic_network* n, bool _bcast);
+	host(network* n, bool _bcast);
 
-	basic_network* _net;
+	network* _net;
 	host_addr _addr;
 	bool _mcast;
 
 	friend class host_group;
-	friend class basic_network;
+	friend class network;
 	channel_set _incoming;
 public:
 
-	host(basic_network* n);
+	host(network* n);
 	virtual ~host();
 	
 	/**
 		The network this host belongs to
 	  */
-	inline basic_network* net() const { return _net; }
+	inline network* net() const { return _net; }
 
 	/**
 		True this is a host group
@@ -366,7 +365,7 @@ class host_group : public host
 {
 public:
 	/** Constructor  */
-	host_group(basic_network* nw);
+	host_group(network* nw);
 
 	/**
 		The members of the group
@@ -389,7 +388,7 @@ private:
 public:
 	typedef typename Container::iterator iterator;
 
-	inline mcast_group(basic_network* _nw) : host_group(_nw) { }
+	inline mcast_group(network* _nw) : host_group(_nw) { }
 
 	inline void join(Process* host) {  memb.insert(host); }
 	inline void leave(Process* host) { memb.erase(host); }
@@ -540,7 +539,7 @@ struct rpc_call;
 	When host A wants to call a remote method on host B, 
 	it makes the call through an rpc proxy method, so that
 	the network traffic can be accounted for. Host A is the
-	owner of the proxy and host B is the proxied host (process).
+	owner of the proxy and host B is the proxied host.
 
 	Each proxy is associated with an rpc interface, which
 	represents the collection of remote calls (rpc functions)
@@ -631,7 +630,7 @@ public:
 	used, these strings are generated from the C++ classes without
 	any user-code overhead.
   */
-class basic_network
+class network
 {
 protected:
 	host_set _hosts;		// all the simple hosts
@@ -666,15 +665,15 @@ protected:
 public:
 
 	/** A default constructor */
-	basic_network();
-	virtual ~basic_network();
+	network();
+	virtual ~network();
 
 	/// Standard group, every host is added to it, although
 	/// not much use, except taking an address.
 	/// Maybe in the future...
 	struct all_hosts_group : host_group
 	{
-		all_hosts_group(basic_network* _nw) : host_group(_nw) {}
+		all_hosts_group(network* _nw) : host_group(_nw) {}
 		size_t receivers(host* h) { return net()->_hosts.size()-1; }
 	};
 	all_hosts_group all_hosts;
@@ -789,143 +788,6 @@ public:
 };
 
 
-/**
-	A process extends a host with remote methods.
-  */
-class process : public host
-{
-public:
-	using host::host;
-
-	/**
-		This callback is called after network initialization.
-
-		This callback exists so that
-		the process can establish connections and perform overall
-		configuration.
-
-		Subclasses should override this method to customize behaviour.
-		The default implementation does nothing.
-	  */
-	virtual void setup_connections() { }
-
-	/**
-		This is called for every node before network finalization.
-	 */
-	virtual void finalize() { }
-};
-
-
-/**
-   A local site accepts the input from streams.
-
-   This is a base class for classes implementing hosts that 
-   process stream records.
-   */
-class local_site : public process
-{
-public:
-	local_site(basic_network* nw, host_addr _sid) 
-	: process(nw)
-	{
-		if(!set_addr(_sid))
-			throw std::runtime_error("Local site could not acquire the hid address");
-	}
-
-};
-
-
-/**
-	A star network topology.
-
-	In a star network, every regular node (site) is connected to 
-	a central node (hub).
-
-	Nodes in a star network are local sites.
-
-	This class is a mixin. A concrete class \c mynetwork is defined
-	as 
-	\code[c++]
-     class mynetwork 
-       : public star_network<mynetwork, myhub, mysite>, // all 3 types are incomplete
-       public reactive
-     { ... };
-	\endcode
-
-	@tparam Net  the concrete network class composed by this mixin
-	@tparam Hub  the node type for the hub node (aka. coordinator)
-	@tparam Site the node type for local sites
-  */
-template <typename Net, typename Hub, typename Site>
-struct star_network : public basic_network
-{
-	typedef Net network_type;
-	typedef Hub hub_type;
-	typedef Site site_type;
-
-	set<host_addr> hids;
-	Hub* hub;
-	vector<Site*> sites;
-
-	template <typename AddrIter>
-	star_network(AddrIter from, AddrIter to) 
-	: hids(), hub(nullptr) 
-	{ 
-		// copy addresses to address set
-		std::copy(from, to, std::inserter(hids, hids.end()));
-
-		// reserve the source_id addresses for the sites
-		if(! hids.empty()) {
-			reserve_addresses(* hids.rbegin());
-		}
-	}
-
-	template <typename AddrRange>
-	star_network(const AddrRange& _hids)
-	:  star_network(std::begin(_hids), std::end(_hids))
-	{ }
-
-	inline site_type* source_site(host_addr hid) const {
-		return static_cast<site_type*>(by_addr(hid));
-	}
- 
-	template <typename ... Args>
-	Net* setup(Args...args)
-	{
-		// create the nodes
-		hub = new Hub((Net*)this, args...);
-
-
-		for(auto hid : hids) 
-		{
-			Site* n = new Site((Net*)this, hid, args...);
-			n->set_addr(hid);
-			sites.push_back(n);
-		}
-
-		// make the connections
-		hub->setup_connections();
-		for(auto n : sites) {
-			n->setup_connections();
-		}
-
-		return (Net*)this;
-	}
-
-	~star_network() 
-	{
-		// Delete the nodes that we created...
-		for(auto n : sites) {
-			n->finalize();
-		}
-		hub->finalize();
-
-		for(auto n : sites) {
-			delete n;
-		}
-		delete hub;
-	}
-};
 
 
 /*	----------------------------------------
@@ -1077,7 +939,7 @@ public:
 	/**
 		Construt a proxy object for the given owner.
 	  */
-	inline remote_proxy(process* owner) 
+	inline remote_proxy(host* owner) 
 	: rpc_proxy(owner->net()->decl_interface(typeid(Process)), owner)
 	{ }
 
@@ -1321,7 +1183,7 @@ public:
 	/**
 		Create a proxy for the given owner
 	  */
-	proxy_map(process* _owner) : owner(_owner) {  }
+	proxy_map(host* _owner) : owner(_owner) {  }
 
 	/**
 		Destroy proxy map and all proxies it created
@@ -1388,7 +1250,7 @@ public:
 
 
 private:
-	process* owner;
+	host* owner;
 	std::map<proxied_type*, proxy_type*> pmap;
 	std::map<mcast_group<proxied_type>*, proxy_type*> mpmap;
 };
@@ -1423,8 +1285,8 @@ struct chan_frame : vector<channel*>
 	: container(cs.begin(), cs.end()) { }
 
 	// Constructor from network
-	chan_frame(const basic_network& nw) : chan_frame(nw.channels()) {}
-	chan_frame(const basic_network* nw) : chan_frame(nw->channels()) {}
+	chan_frame(const network& nw) : chan_frame(nw.channels()) {}
+	chan_frame(const network* nw) : chan_frame(nw->channels()) {}
 
 	// The protocol of the network
 	inline const rpc_protocol& rpc() const {

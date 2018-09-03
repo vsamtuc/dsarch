@@ -28,7 +28,7 @@ std::string named::anon(named const * ptr)
         return S.str();
 }
 
-host::host(basic_network* n, bool _b) 
+host::host(network* n, bool _b) 
 : _net(n), _addr(unknown_addr), _mcast(_b)
 {
 	if(!_mcast) {
@@ -38,7 +38,7 @@ host::host(basic_network* n, bool _b)
 		_net->_groups.insert(this);
 }
 
-host::host(basic_network* n)
+host::host(network* n)
 : host(n, false)
 { }
 
@@ -89,7 +89,7 @@ void host::set_addr()
 //-------------------
 
 
-host_group::host_group(basic_network* n) 
+host_group::host_group(network* n) 
 : host(n, true)
 { }
 
@@ -162,7 +162,7 @@ string multicast_channel::repr() const {
 //-------------------
 
 
-channel* basic_network::create_channel(host* src, host* dst, rpcc_t endp) const
+channel* network::create_channel(host* src, host* dst, rpcc_t endp) const
 {
 	if(dst->is_mcast())
 		return new multicast_channel(src, static_cast<host_group*>(dst), endp);
@@ -172,7 +172,7 @@ channel* basic_network::create_channel(host* src, host* dst, rpcc_t endp) const
 
 
 
-channel* basic_network::connect(host* src, host* dst, rpcc_t endp)
+channel* network::connect(host* src, host* dst, rpcc_t endp)
 {
 	// check for existing channel
 	for(auto chan : dst->_incoming) {
@@ -198,7 +198,7 @@ channel* basic_network::connect(host* src, host* dst, rpcc_t endp)
 }
 
 
-void basic_network::disconnect(channel* c)
+void network::disconnect(channel* c)
 {
 	_channels.erase(c);
 	if(c->dst)
@@ -206,31 +206,31 @@ void basic_network::disconnect(channel* c)
 	delete c;
 }
 
-rpcc_t basic_network::decl_interface(const std::type_info& ti)
+rpcc_t network::decl_interface(const std::type_info& ti)
 {
 	return decl_interface(type_index(ti));
 }
 
-rpcc_t basic_network::decl_interface(const type_index& tix)
+rpcc_t network::decl_interface(const type_index& tix)
 {
 	return decl_interface(boost::core::demangle(tix.name()));
 }
 
-rpcc_t basic_network::decl_interface(const string& name)
+rpcc_t network::decl_interface(const string& name)
 {
 	return rpctab.declare(name);
 }
 
 
 
-rpcc_t basic_network::decl_method(rpcc_t ifc, const string& name, bool onew)
+rpcc_t network::decl_method(rpcc_t ifc, const string& name, bool onew)
 {
 	return rpctab.declare(ifc, name, onew);
 }
 
 
 
-basic_network::basic_network()
+network::network()
 : all_hosts(this)
 { 
 	new_group_addr = -1;
@@ -239,7 +239,7 @@ basic_network::basic_network()
 }
 
 
-bool basic_network::assign_address(host* h, host_addr a)
+bool network::assign_address(host* h, host_addr a)
 {
 	if(h->_addr != unknown_addr)
 		return h->_addr == a;
@@ -276,7 +276,7 @@ bool basic_network::assign_address(host* h, host_addr a)
 }
 
 
-void basic_network::reserve_addresses(host_addr a)
+void network::reserve_addresses(host_addr a)
 {
 	if(a>=0) {
 		if(new_host_addr <= a) new_host_addr = a + 1;
@@ -285,13 +285,13 @@ void basic_network::reserve_addresses(host_addr a)
 	}
 }
 
-host* basic_network::by_addr(host_addr a) const
+host* network::by_addr(host_addr a) const
 {
 	auto it = addr_map.find(a);
 	return it==addr_map.end() ? nullptr : it->second;
 }
 
-basic_network::~basic_network()
+network::~network()
 {	
 }
 
@@ -495,7 +495,7 @@ rpc_call::rpc_call(rpc_proxy* _prx, bool _oneway, const string& _name)
 
 rpc_call::~rpc_call()
 {
-	basic_network* nw = _proxy->_r_owner->net();
+	network* nw = _proxy->_r_owner->net();
 	nw->disconnect(_req_chan);
 	if(! one_way)
 		nw->disconnect(_resp_chan);
@@ -504,7 +504,7 @@ rpc_call::~rpc_call()
 
 void rpc_call::connect(host* dst)
 {
-	basic_network* nw = _proxy->_r_owner->net();
+	network* nw = _proxy->_r_owner->net();
 	host* owner = _proxy->_r_owner;
 
 	assert(dst->is_mcast() <= one_way); 

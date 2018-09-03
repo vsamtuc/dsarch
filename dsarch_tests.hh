@@ -16,20 +16,20 @@ using std::string;
 struct Echo;
 struct Echo_cli;
 
-struct Echo_network : basic_network
+struct Echo_network : network
 {
 	Echo_network() 
 	{}
 };
 
 
-struct Echo : process
+struct Echo : host
 {
 	Echo_network* nw;
 	int value;
 
 	Echo(Echo_network* _nw) 
-		: process(_nw), nw(_nw), value(0)
+		: host(_nw), nw(_nw), value(0)
 	{
 	}
 
@@ -65,17 +65,17 @@ struct Echo_proxy : remote_proxy<Echo>
 	REMOTE_METHOD(Echo, finish);
 	REMOTE_METHOD(Echo, add);
 
-	Echo_proxy(process* owner) 
+	Echo_proxy(host* owner) 
 	: remote_proxy<Echo>(owner)
 	{}
 };
 
-struct Echo_cli : process
+struct Echo_cli : host
 {
 	Echo_proxy proxy;
 
-	Echo_cli(basic_network* nw) 
-	: process(nw), proxy(this)
+	Echo_cli(network* nw) 
+	: host(nw), proxy(this)
 	{
 		//proxy = new Echo_proxy(this, srv);
 	}
@@ -113,16 +113,16 @@ struct Echo_cli : process
 struct PeerNetwork;
 struct Peer;
 
-struct PeerNetwork : basic_network
+struct PeerNetwork : network
 {
 	mcast_group<Peer> peers; // this does not need a full type!
-	PeerNetwork() : basic_network(), peers(this) { }
+	PeerNetwork() : network(), peers(this) { }
 };
 
 struct Peer_proxy;
 struct Peer_mcast_proxy;
 
-struct Peer : process
+struct Peer : host
 {
 	PeerNetwork* p2pnet;
 
@@ -140,7 +140,7 @@ struct Peer : process
 	int arity;
 
 	Peer(PeerNetwork* nw, int k) 
-	: process(nw), p2pnet(nw), peermap(this),
+	: host(nw), p2pnet(nw), peermap(this),
 	  key(k), arity(1)
 	{ }
 
@@ -161,7 +161,7 @@ struct Peer_proxy : remote_proxy<Peer>
 {
 	REMOTE_METHOD(Peer, gather_replies);
 	REMOTE_METHOD(Peer, scatter_inquiry);
-	Peer_proxy(process* owner) : remote_proxy<Peer>(owner) {}
+	Peer_proxy(host* owner) : remote_proxy<Peer>(owner) {}
 };
 
 
